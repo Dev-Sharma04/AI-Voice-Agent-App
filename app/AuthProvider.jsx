@@ -20,7 +20,7 @@ function AuthProvider({ children }) {
         name:user?.displayName,
         email:user.primaryEmail
       });
-      //console.log(result);
+      console.log(result);
       setUserData(result);
     }
   return (
