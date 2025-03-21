@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 // const RecordRTC = dynamic(() => import('recordrtc'), { ssr: false });
 import RecordRTC from 'recordrtc';
 import { RealtimeTranscriber } from 'assemblyai';
-import { getToken } from '@/services/GlobalServices';
+import { AIModel, getToken } from '@/services/GlobalServices';
+import { Loader2Icon } from 'lucide-react';
 
 function DiscussionRoom() {
     const {roomid} = useParams();
@@ -23,6 +24,7 @@ function DiscussionRoom() {
     let silenceTimeout ;
     const [transcribe, setTranscribe] = useState();
     const [conversation,setConversation] = useState([]); 
+    const [loading,setLoading] = useState(false);
     let texts = {};
 
     useEffect(()=>{
@@ -35,7 +37,7 @@ function DiscussionRoom() {
 
     const connectToServer= async ()=>{
         setEnableMic(true);
-
+        setLoading(true);
         //intialize assembly AI
 
         realtimeTranscriber.current= new RealtimeTranscriber({
@@ -47,11 +49,16 @@ function DiscussionRoom() {
             console.log(transcript);
             let msg = '';
 
-            id(transcript.message_type == 'FinalTranscript'){
+            if(transcript.message_type == 'FinalTranscript'){
                 setConversation(prev=>[...prev,{
                     role:'user',
                     content:transcript.text
-                }])
+                }]);
+
+                //Calling AI text model to get response
+                const aiResp=await AIModel(DiscussionRoomData.topic,DiscussionRoomData.coachingOption,transcript.text);
+
+                console.log(aiResp);
             }
             texts[transcript.audio_start]=transcript?.text;
             const keys = Object.keys(texts);
@@ -67,7 +74,7 @@ function DiscussionRoom() {
         })
 
         await realtimeTranscriber.current.connect();
-
+        setLoading(false);
         if(typeof window !== "undefined" && typeof navigator !== "undefined"){
             navigator.mediaDevices.getUserMedia({audio:true})
             .then((stream) =>{
@@ -105,10 +112,12 @@ function DiscussionRoom() {
 
     const disconnect= async(e) => {
         e.preventDefault();
+        setLoading(true);
         await realtimeTranscriber.current.close();
         recorder.current.pauseRecording();
         recorder.current=null;
         setEnableMic(false);
+        setLoading(false);
     }
   return (
     <div className='-mt-12'>
@@ -126,9 +135,9 @@ function DiscussionRoom() {
                     </div>
                 </div>
                 <div className='mt-5 flex items-center justify-center '> 
-                    {!enableMic ?<Button onClick={connectToServer}>Connect</Button>
+                    {!enableMic ?<Button onClick={connectToServer} disabled={loading}> {loading&&<Loader2Icon className='animate-spin'/>}Connect</Button>
                     :
-                    <Button variant="destructive" onClick={disconnect}>Disconnect</Button>}
+                    <Button variant="destructive" onClick={disconnect} disabled={loading}> {loading&&<Loader2Icon className='animate-spin'/>} Disconnect</Button>}
                 </div>
             </div>
             <div>
