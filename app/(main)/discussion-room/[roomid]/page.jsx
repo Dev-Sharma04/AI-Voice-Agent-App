@@ -42,7 +42,7 @@ function DiscussionRoom() {
             token:await getToken(),
             sample_rate:16_000
         })
-
+        //for the third commit
         realtimeTranscriber.current.on('transcript',async(transcript)=>{
             console.log(transcript);
             let msg = '';
