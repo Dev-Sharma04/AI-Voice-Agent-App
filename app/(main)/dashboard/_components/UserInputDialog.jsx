@@ -16,6 +16,7 @@ import { useStackApp } from '@stackframe/stack'
 import { Button } from '@/components/ui/button'
 import { useMutation } from 'convex/react'
 import { LoaderCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
   
 function UserInputDialog({children, CoachingOptions}) {
 
@@ -23,6 +24,9 @@ function UserInputDialog({children, CoachingOptions}) {
     const [topic,setTopic] = useState();
     const createDiscussionRoom = useMutation(api.DiscussionRoom.CreateNewRoom);
     const [loading, setLoading] = useState(false);
+    const [openDialog, setOpenDialog] = useState(false);
+    const router=useRouter();
+
     const onClickNext=async()=>{
         setLoading(true);
         const result=await createDiscussionRoom({
@@ -32,9 +36,12 @@ function UserInputDialog({children, CoachingOptions}) {
         })
         console.log(result);
         setLoading(false);
+        setOpenDialog(false);
+        router.push('/discussion-room/' + result)
     }
+
   return (
-    <Dialog>
+    <Dialog open={openDialog} onOpenChange={setOpenDialog}>
     <DialogTrigger>{children}</DialogTrigger>
         <DialogContent>
             <DialogHeader>
