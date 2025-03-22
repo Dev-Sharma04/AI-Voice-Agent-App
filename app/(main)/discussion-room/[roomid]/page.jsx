@@ -1,7 +1,7 @@
 "use client"
 import { api } from '@/convex/_generated/api';
 import { CoachingExpert } from '@/services/Options';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { useParams } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 // const RecordRTC = dynamic(() => import('recordrtc'), { ssr: false });
 import RecordRTC from 'recordrtc';
 import { RealtimeTranscriber } from 'assemblyai';
-import { AIModel, getToken } from '@/services/GlobalServices';
+import { AIModel, ConvertTextToSpeech, getToken } from '@/services/GlobalServices';
 import { Loader2Icon } from 'lucide-react';
+import ChatBox from './_components/ChatBox';
 
 function DiscussionRoom() {
     const {roomid} = useParams();
@@ -23,8 +24,19 @@ function DiscussionRoom() {
     const realtimeTranscriber = useRef(null);
     let silenceTimeout ;
     const [transcribe, setTranscribe] = useState();
-    const [conversation,setConversation] = useState([]); 
+    const [conversation,setConversation] = useState([{
+        role:'Assistant',
+        content:"Hi"
+        },
+        {
+            role:'user',
+            content:'Hello'
+        }
+    ]); 
     const [loading,setLoading] = useState(false);
+    const [audioUrl, setAudioUrl] = useState();
+    const [enableFeedbackNotes,setEnableFeedbackNotes] = useState(false);
+    const UpdateConversation=useMutation(api.DiscussionRoom.UpdateConversation);
     let texts = {};
 
     useEffect(()=>{
@@ -59,6 +71,7 @@ function DiscussionRoom() {
                 const aiResp=await AIModel(DiscussionRoomData.topic,DiscussionRoomData.coachingOption,transcript.text);
 
                 console.log(aiResp);
+                setConversation(prev => [...prev,aiResp])
             }
             texts[transcript.audio_start]=transcript?.text;
             const keys = Object.keys(texts);
@@ -110,6 +123,28 @@ function DiscussionRoom() {
         }
     }
 
+    useEffect(() => {
+        async function fetchData() {
+            if(conversation[conversation.length -1].role == 'user'){
+                //Calling AI text model to get response
+                const lasttwoMsg = conversation.slice(-2);
+                const aiResp = await AIModel(
+                    DiscussionRoomData.topic,
+                    DiscussionRoomData.coachingOption,
+                    lasttwoMsg
+                );
+
+                console.log(aiResp);
+                const url= await ConvertTextToSpeech(aiResp.content,DiscussionRoomData.expertName);
+                console.log(url);
+                setAudioUrl(url);
+                setConversation(prev =>[...prev,aiResp])
+            }
+        }
+        fetchData()
+    },[conversation])
+
+    
     const disconnect= async(e) => {
         e.preventDefault();
         setLoading(true);
@@ -117,7 +152,13 @@ function DiscussionRoom() {
         recorder.current.pauseRecording();
         recorder.current=null;
         setEnableMic(false);
+
+        await  UpdateConversation({
+            id:DiscussionRoomData._id,
+            conversation:conversation
+        })
         setLoading(false);
+        setEnableFeedbackNotes(true);
     }
   return (
     <div className='-mt-12'>
@@ -130,6 +171,8 @@ function DiscussionRoom() {
                     className='h-[80px] w-[80px] rounded-full object-cover animate-pulse'
                     />
                     <h2 className='text-gray-500'>{expert?.name}</h2>
+
+                    <audio src={audioUrl} type="audio/mp3" autoPlay/>
                     <div className='p-5 bg-gray-200 px-10 rounded-lg absolute bottom-10 right-10'>
                         <UserButton/>
                     </div>
@@ -141,12 +184,7 @@ function DiscussionRoom() {
                 </div>
             </div>
             <div>
-                <div className=' h-[60vh] bg-secondary border rounded-4xl
-                flex flex-col items-center justify-center relative'>
-            
-                <h2>Chat Section</h2>
-                </div>
-                <h2 className='mt-4 text-gray-400 text-sm'>At the end of your conversation, we will automatically generate feedbac/notes from your conversation.</h2>
+                <ChatBox conversation={conversation} enableFeedbackNotes={enableFeedbackNotes} coachingOption={DiscussionRoomData?.coachingOption}/>
             </div>
         </div>
         <div>
